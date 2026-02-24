@@ -106,14 +106,44 @@ function sat(x, k) {
   }
 
   // Color ramps (edit these once we confirm your exact property names + thresholds)
-  function colorForSQI(sqi) {
-    // Expect sqi 0..100 (higher = better). Adjust thresholds to match your Folium.
-    if (sqi === null || sqi === undefined || isNaN(sqi)) return "#999999";
-    if (sqi >= 90) return "#2ecc71";   // green
-    if (sqi >= 75) return "#f1c40f";   // yellow
-    if (sqi >= 60) return "#e67e22";   // orange
-    return "#e74c3c";                  // red
+function lerp(a, b, t) { return a + (b - a) * t; }
+function hexToRgb(hex) {
+  const h = hex.replace("#", "").trim();
+  return {
+    r: parseInt(h.slice(0,2), 16),
+    g: parseInt(h.slice(2,4), 16),
+    b: parseInt(h.slice(4,6), 16),
+  };
+}
+function rgbToHex(r,g,b) {
+  const toHex = (x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2,"0");
+  return "#" + toHex(r) + toHex(g) + toHex(b);
+}
+
+// F9-style segment gradient: red -> orange -> yellow -> green
+// We clamp to 75..100 like your notebook does for visual range.
+function colorForSQI(sqi) {
+  let x = Number(sqi);
+  if (!isFinite(x)) return "#999999";
+  x = Math.max(75, Math.min(100, x));
+
+  const stops = [
+    { v: 75,  c: "#d73027" }, // red
+    { v: 83.3, c: "#fc8d59" }, // orange
+    { v: 91.6, c: "#fee08b" }, // yellow
+    { v: 100, c: "#91cf60" }   // green
+  ];
+
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i], b = stops[i+1];
+    if (x >= a.v && x <= b.v) {
+      const t = (x - a.v) / (b.v - a.v);
+      const A = hexToRgb(a.c), B = hexToRgb(b.c);
+      return rgbToHex(lerp(A.r,B.r,t), lerp(A.g,B.g,t), lerp(A.b,B.b,t));
+    }
   }
+  return stops[stops.length - 1].c;
+}
 
   function colorForEvent(props) {
     // Try to match your F9 contract:
@@ -215,23 +245,26 @@ function sat(x, k) {
     const gj = L.geoJSON(geo, {
       pointToLayer: (feature, latlng) => {
         const p = feature.properties || {};
-        const sqi = Number(pickFirst(p, ["SQI", "sqi", "SQI_pred_v2", "SQI_pred", "sqi_pred", "score"], NaN));
+        let sqi = Number(p.SQI_pred_v2_locburst);
+        if (!isFinite(sqi)) return L.circleMarker(latlng, { radius: 0, opacity: 0 });
+        sqi = Math.max(75, Math.min(100, sqi));
         const col = colorForSQI(sqi);
         return L.circleMarker(latlng, {
-          radius: 4,
-          weight: 1,
+          radius: 5,
+          weight: 0,
           color: col,
           fillColor: col,
-          fillOpacity: 0.75
+          fillOpacity: 0.85
         }).bindPopup(popupHtml("Segment", p));
       },
-      style: (feature) => {
-        // If segments are lines/polylines instead of points
-        const p = (feature && feature.properties) || {};
-        const sqi = Number(pickFirst(p, ["SQI", "sqi", "SQI_pred_v2", "SQI_pred", "sqi_pred", "score"], NaN));
-        const col = colorForSQI(sqi);
-        return { color: col, weight: 4, opacity: 0.8 };
-      }
+        style: (feature) => {
+          const p = (feature && feature.properties) || {};
+          let sqi = Number(p.SQI_pred_v2_locburst);
+          if (!isFinite(sqi)) sqi = 100; // fail-open
+          sqi = Math.max(75, Math.min(100, sqi));
+          const col = colorForSQI(sqi);
+          return { color: col, weight: 4, opacity: 0.8 };
+        }
     });
     gj.addTo(segmentsLayer);
   }
