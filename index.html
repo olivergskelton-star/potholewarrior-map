@@ -421,15 +421,14 @@ function sat(x, k) {
   // Load everything
   (async () => {
     try {
-      const [seg, evt, bur] = await Promise.all([
-        loadGeoJson("./segments.geojson"),
-        loadGeoJson("./events.geojson"),
-        loadGeoJson("./bursts.geojson")
-      ]);
-
-      addSegments(seg);
-      addBursts(bur);
-      addProbablePotholes(bur);
+      const [seg, bur] = await Promise.all([
+          loadGeoJson("./segments.geojson"),
+          loadGeoJson("./bursts.geojson")
+        ]);
+        
+        addSegments(seg);
+        addBursts(bur);
+        addProbablePotholes(bur);
 
       // default-visible overlays (like Folium show=True)
       segmentsLayer.addTo(map);
@@ -456,11 +455,6 @@ function sat(x, k) {
       <div class="legend-row"><span class="swatch" style="background:${colorForSQI(80)}"></span> 75–89</div>
       <div class="legend-row"><span class="swatch" style="background:${colorForSQI(65)}"></span> 60–74</div>
       <div class="legend-row"><span class="swatch" style="background:${colorForSQI(40)}"></span> &lt; 60 (bad)</div>
-
-      <div style="font-weight:600;margin-top:10px">Events</div>
-      <div class="legend-row"><span class="swatch" style="background:#ff0000"></span> Tagged pothole</div>
-      <div class="legend-row"><span class="swatch" style="background:#808080"></span> Speed bump</div>
-      <div class="legend-row"><span class="swatch" style="background:#ff7a00"></span> Candidate hit</div>
 
       <div style="font-weight:600;margin-top:10px">Bursts</div>
       <div class="legend-row"><span class="swatch" style="background:#ffffff"></span> Burst sample</div>
