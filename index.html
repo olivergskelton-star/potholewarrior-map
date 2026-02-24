@@ -195,8 +195,7 @@ function sat(x, k) {
   });
 
   const overlays = {
-  "Segments — Event SQI v2": segEvtLayer,
-  "Segments — Physics SQI v2": segPhyLayer,
+  "Segments — SQI": segmentsLayer,
   "Bursts": burstsCluster,
   "Probable potholes (bursts, 15m)": probableLayer
 };
@@ -429,13 +428,11 @@ function sat(x, k) {
       ]);
 
       addSegments(seg);
-      addEvents(evt);
       addBursts(bur);
       addProbablePotholes(bur);
 
       // default-visible overlays (like Folium show=True)
       segmentsLayer.addTo(map);
-      eventsCluster.addTo(map);
       burstsCluster.addTo(map);
       probableLayer.addTo(map);
 
