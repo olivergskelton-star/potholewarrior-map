@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PotholeWarrior – Web Map</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <!-- MarkerCluster (for fast mobile-safe clustering) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+  />
+  <script
+    src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+  ></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; width: 100%; }
+
+    /* Simple “Folium-like” overlays */
+    .map-overlay {
+      background: rgba(255,255,255,0.92);
+      border-radius: 10px;
+      padding: 10px 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    .legend-row { display:flex; align-items:center; gap:8px; margin:6px 0; }
+    .swatch { width:14px; height:14px; border-radius:50%; border:1px solid rgba(0,0,0,0.25); }
+    .logo-badge {
+      display:flex; align-items:center; gap:10px;
+    }
+    .logo-badge img {
+      width: 34px; height: 34px; border-radius: 8px;
+      object-fit: cover; border: 1px solid rgba(0,0,0,0.15);
+      background: #fff;
+    }
+    .logo-badge .title { font-weight: 700; }
+    .logo-badge .sub { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+  // ----------------------------
+  // Helpers
+  // ----------------------------
+  function pickFirst(obj, keys, fallback=null) {
+    for (const k of keys) {
+      if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== undefined) {
+        return obj[k];
+      }
+    }
+    return fallback;
+  }
+
+  // Color ramps (edit these once we confirm your exact property names + thresholds)
+  function colorForSQI(sqi) {
+    // Expect sqi 0..100 (higher = better). Adjust thresholds to match your Folium.
+    if (sqi === null || sqi === undefined || isNaN(sqi)) return "#999999";
+    if (sqi >= 90) return "#2ecc71";   // green
+    if (sqi >= 75) return "#f1c40f";   // yellow
+    if (sqi >= 60) return "#e67e22";   // orange
+    return "#e74c3c";                  // red
+  }
+
+  function colorForEvent(props) {
+    // Try to match your F9 contract:
+    // - Tagged pothole -> RED
+    // - Speed bump -> GREY
+    // - Candidate pothole -> ORANGE (severity-scaled in size)
+    const tagLabel = (pickFirst(props, ["tag_label", "tag", "label"], "") || "").toString().toLowerCase();
+    const eventType = (pickFirst(props, ["event_type", "type"], "") || "").toString().toLowerCase();
+
+    if (tagLabel.includes("pothole")) return "#ff0000";
+    if (eventType === "speed_bump" || tagLabel.includes("speed")) return "#808080";
+    if (eventType === "candidate_hit") return "#ff7a00";
+    return "#1f78ff"; // fallback (blue)
+  }
+
+  function radiusForEvent(props) {
+    // Use severity if present; otherwise a sensible default
+    const sev = Number(pickFirst(props, ["severity", "sev", "score", "mag", "delta"], 1));
+    if (isNaN(sev)) return 6;
+    // Clamp + scale lightly (mobile-friendly)
+    return Math.max(5, Math.min(14, 5 + sev * 2));
+  }
+
+  function colorForBurst(props) {
+    // Bursts often represent “impacts” -> keep punchy
+    // If you have "delta" or "mag", we can refine later.
+    return "#ffffff"; // white marker like your current map; we can switch to red later if desired
+  }
+
+  function radiusForBurst(props) {
+    const d = Number(pickFirst(props, ["delta", "mag", "impact", "severity"], 1));
+    if (isNaN(d)) return 5;
+    return Math.max(4, Math.min(12, 4 + d * 2));
+  }
+
+  function popupHtml(title, props) {
+    const rows = Object.entries(props || {})
+      .filter(([k,v]) => v !== null && v !== undefined && v !== "")
+      .slice(0, 25) // keep popups light
+      .map(([k,v]) => `<div><b>${k}</b>: ${String(v)}</div>`)
+      .join("");
+    return `<div style="min-width:220px"><div style="font-weight:700;margin-bottom:6px">${title}</div>${rows}</div>`;
+  }
+
+  // ----------------------------
+  // Map init
+  // ----------------------------
+  const map = L.map("map", { preferCanvas: true }).setView([51.0, -0.1], 13);
+
+  const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
+
+  const tonerLite = L.tileLayer("https://stamen-tiles.a.ssl.fastly.net/toner-lite/{z}/{x}/{y}.png", {
+    maxZoom: 20,
+    attribution: "Map tiles by Stamen Design"
+  });
+
+  const baseLayers = {
+    "OpenStreetMap": osm,
+    "Toner Lite": tonerLite
+  };
+
+  // Overlay containers
+  const segmentsLayer = L.layerGroup();
+  const eventsCluster = L.markerClusterGroup({
+    chunkedLoading: true,
+    chunkDelay: 25,
+    maxClusterRadius: 55,
+    spiderfyOnMaxZoom: true
+  });
+  const burstsCluster = L.markerClusterGroup({
+    chunkedLoading: true,
+    chunkDelay: 25,
+    maxClusterRadius: 55,
+    spiderfyOnMaxZoom: true
+  });
+
+  const overlays = {
+    "Segments — SQI": segmentsLayer,
+    "Events": eventsCluster,
+    "Bursts": burstsCluster
+  };
+
+  L.control.layers(baseLayers, overlays, { collapsed: false }).addTo(map);
+
+  // ----------------------------
+  // Load GeoJSON (relative files)
+  // ----------------------------
+  async function loadGeoJson(url) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
+    return await res.json();
+  }
+
+  function addSegments(geo) {
+    const gj = L.geoJSON(geo, {
+      pointToLayer: (feature, latlng) => {
+        const p = feature.properties || {};
+        const sqi = Number(pickFirst(p, ["SQI", "sqi", "SQI_pred_v2", "SQI_pred", "sqi_pred", "score"], NaN));
+        const col = colorForSQI(sqi);
+        return L.circleMarker(latlng, {
+          radius: 4,
+          weight: 1,
+          color: col,
+          fillColor: col,
+          fillOpacity: 0.75
+        }).bindPopup(popupHtml("Segment", p));
+      },
+      style: (feature) => {
+        // If segments are lines/polylines instead of points
+        const p = (feature && feature.properties) || {};
+        const sqi = Number(pickFirst(p, ["SQI", "sqi", "SQI_pred_v2", "SQI_pred", "sqi_pred", "score"], NaN));
+        const col = colorForSQI(sqi);
+        return { color: col, weight: 4, opacity: 0.8 };
+      }
+    });
+    gj.addTo(segmentsLayer);
+  }
+
+  function addEvents(geo) {
+    const gj = L.geoJSON(geo, {
+      pointToLayer: (feature, latlng) => {
+        const p = feature.properties || {};
+        const col = colorForEvent(p);
+        const r = radiusForEvent(p);
+        const marker = L.circleMarker(latlng, {
+          radius: r,
+          weight: 1,
+          color: col,
+          fillColor: col,
+          fillOpacity: 0.85
+        }).bindPopup(popupHtml("Event", p));
+        return marker;
+      }
+    });
+    eventsCluster.addLayer(gj);
+  }
+
+  function addBursts(geo) {
+    const gj = L.geoJSON(geo, {
+      pointToLayer: (feature, latlng) => {
+        const p = feature.properties || {};
+        const col = colorForBurst(p);
+        const r = radiusForBurst(p);
+        const marker = L.circleMarker(latlng, {
+          radius: r,
+          weight: 1,
+          color: "#000000",
+          fillColor: col,
+          fillOpacity: 0.95
+        }).bindPopup(popupHtml("Burst", p));
+        return marker;
+      }
+    });
+    burstsCluster.addLayer(gj);
+  }
+
+  // Fit map to loaded data
+  function fitToAll() {
+    const groups = [];
+    if (segmentsLayer.getLayers().length) groups.push(segmentsLayer);
+    if (eventsCluster.getLayers().length) groups.push(eventsCluster);
+    if (burstsCluster.getLayers().length) groups.push(burstsCluster);
+    if (!groups.length) return;
+
+    const fg = L.featureGroup(groups);
+    try {
+      map.fitBounds(fg.getBounds().pad(0.1));
+    } catch (_) {}
+  }
+
+  // Load everything
+  (async () => {
+    try {
+      const [seg, evt, bur] = await Promise.all([
+        loadGeoJson("./segments.geojson"),
+        loadGeoJson("./events.geojson"),
+        loadGeoJson("./bursts.geojson")
+      ]);
+
+      addSegments(seg);
+      addEvents(evt);
+      addBursts(bur);
+
+      // default-visible overlays (like Folium show=True)
+      segmentsLayer.addTo(map);
+      eventsCluster.addTo(map);
+      burstsCluster.addTo(map);
+
+      fitToAll();
+    } catch (err) {
+      alert(err.message || String(err));
+      console.error(err);
+    }
+  })();
+
+  // ----------------------------
+  // Legend + Logo overlays
+  // ----------------------------
+  const legend = L.control({ position: "bottomleft" });
+  legend.onAdd = function() {
+    const div = L.DomUtil.create("div", "map-overlay");
+    div.innerHTML = `
+      <div style="font-weight:700;margin-bottom:6px">Legend</div>
+      <div style="font-weight:600;margin-top:8px">Segments (SQI)</div>
+      <div class="legend-row"><span class="swatch" style="background:${colorForSQI(95)}"></span> 90–100 (good)</div>
+      <div class="legend-row"><span class="swatch" style="background:${colorForSQI(80)}"></span> 75–89</div>
+      <div class="legend-row"><span class="swatch" style="background:${colorForSQI(65)}"></span> 60–74</div>
+      <div class="legend-row"><span class="swatch" style="background:${colorForSQI(40)}"></span> &lt; 60 (bad)</div>
+
+      <div style="font-weight:600;margin-top:10px">Events</div>
+      <div class="legend-row"><span class="swatch" style="background:#ff0000"></span> Tagged pothole</div>
+      <div class="legend-row"><span class="swatch" style="background:#808080"></span> Speed bump</div>
+      <div class="legend-row"><span class="swatch" style="background:#ff7a00"></span> Candidate hit</div>
+
+      <div style="font-weight:600;margin-top:10px">Bursts</div>
+      <div class="legend-row"><span class="swatch" style="background:#ffffff"></span> Burst sample</div>
+
+      <div style="font-size:12px;opacity:0.75;margin-top:10px">
+        Tip: tap clusters to zoom in.
+      </div>
+    `;
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  legend.addTo(map);
+
+  const logo = L.control({ position: "topright" });
+  logo.onAdd = function() {
+    const div = L.DomUtil.create("div", "map-overlay");
+    div.innerHTML = `
+      <div class="logo-badge">
+        <!-- Optional: add a file named logo.png next to index.html and it will show -->
+        <img src="./logo.png" onerror="this.style.display='none'" alt="Logo"/>
+        <div>
+          <div class="title">Pot Hole Warrior</div>
+          <div class="sub">Dynamic Web Map</div>
+        </div>
+      </div>
+    `;
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  logo.addTo(map);
+</script>
+</body>
+</html>
