@@ -211,6 +211,7 @@ function colorForSQI(sqi) {
   // Overlay containers
   const segmentsLayer = L.layerGroup();
   const probableLayer = L.layerGroup();
+  const repeatDefectsLayer = L.layerGroup();
   const eventsCluster = L.markerClusterGroup({
     chunkedLoading: true,
     chunkDelay: 25,
@@ -224,11 +225,12 @@ function colorForSQI(sqi) {
     spiderfyOnMaxZoom: true
   });
 
-  const overlays = {
-  "Segments — SQI": segmentsLayer,
-  "Bursts": burstsCluster,
-  "Probable potholes (bursts, 15m)": probableLayer
-};
+  const overlayMaps = {
+    "Segments": segmentsLayer,
+    "Bursts": burstsCluster,
+    "Probable potholes": probableLayer,
+    "Repeat defects": repeatDefectsLayer
+  };
 
   L.control.layers(baseLayers, overlays, { collapsed: false }).addTo(map);
 
@@ -306,6 +308,28 @@ function colorForSQI(sqi) {
     });
     burstsCluster.addLayer(gj);
   }
+  
+  function addRepeatDefects(geo) {
+  const gj = L.geoJSON(geo, {
+    pointToLayer: (feature, latlng) => {
+      const p = feature.properties || {};
+
+      const drives = Number(p.drive_count) || 1;
+
+      return L.circleMarker(latlng, {
+        radius: 4 + drives,
+        weight: 1,
+        color: "#cc0000",
+        fillColor: "#ff3333",
+        fillOpacity: 0.9
+      }).bindPopup(
+        popupHtml("Repeat defect", p)
+      );
+    }
+  });
+
+  gj.addTo(repeatDefectsLayer);
+}
   
   function addProbablePotholes(geo) {
   const bursts = (geo.features || []).map(f => {
@@ -454,13 +478,15 @@ function colorForSQI(sqi) {
   // Load everything
   (async () => {
     try {
-      const [seg, bur] = await Promise.all([
+        const [seg, bur, rep] = await Promise.all([
           loadGeoJson("./segments.geojson"),
-          loadGeoJson("./bursts.geojson")
+          loadGeoJson("./bursts.geojson"),
+          loadGeoJson("./repeat_defects.geojson")
         ]);
         
         addSegments(seg);
         addBursts(bur);
+        addRepeatDefects(rep);
         addProbablePotholes(bur);
 
       // default-visible overlays (like Folium show=True)
