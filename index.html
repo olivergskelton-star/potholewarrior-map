@@ -232,7 +232,7 @@ function colorForSQI(sqi) {
     "Repeat defects": repeatDefectsLayer
   };
 
-  L.control.layers(baseLayers, overlays, { collapsed: false }).addTo(map);
+  L.control.layers(baseLayers, overlayMaps, { collapsed: false }).addTo(map);
 
   // ----------------------------
   // Load GeoJSON (relative files)
