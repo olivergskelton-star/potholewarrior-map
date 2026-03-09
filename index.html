@@ -212,6 +212,10 @@ function colorForSQI(sqi) {
   const segmentsLayer = L.layerGroup();
   const probableLayer = L.layerGroup();
   const repeatDefectsLayer = L.layerGroup();
+  const candidateDefectsLayer = L.layerGroup();
+  const pilotDefectsLayer = L.layerGroup();
+  const confirmedDefectsLayer = L.layerGroup();
+
   const eventsCluster = L.markerClusterGroup({
     chunkedLoading: true,
     chunkDelay: 25,
@@ -229,7 +233,10 @@ function colorForSQI(sqi) {
     "Segments": segmentsLayer,
     "Bursts": burstsCluster,
     "Probable potholes": probableLayer,
-    "Repeat defects": repeatDefectsLayer
+    "Repeat defects": repeatDefectsLayer  
+    "Candidate defects (3+ drives)": candidateDefectsLayer,
+    "Pilot defects (4+ drives)": pilotDefectsLayer,
+    "Confirmed defects (6+ drives)": confirmedDefectsLayer
   };
 
   L.control.layers(baseLayers, overlayMaps, { collapsed: false }).addTo(map);
@@ -329,6 +336,28 @@ function colorForSQI(sqi) {
   });
 
   gj.addTo(repeatDefectsLayer);
+}
+
+
+	function addClusteredDefects(geo, targetLayer, label) {
+	  const gj = L.geoJSON(geo, {
+	    pointToLayer: (feature, latlng) => {
+	      const p = feature.properties || {};
+	      const drives = Number(p.max_drive_count) || 1;
+	
+	      return L.circleMarker(latlng, {
+	        radius: 4 + drives,
+	        weight: 1,
+	        color: "#0033cc",
+	        fillColor: "#3388ff",
+	        fillOpacity: 0.75
+	      }).bindPopup(
+	        popupHtml(label, p)
+	      );
+	    }
+	  });
+
+  gj.addTo(targetLayer);
 }
   
   function addProbablePotholes(geo) {
@@ -478,16 +507,21 @@ function colorForSQI(sqi) {
   // Load everything
   (async () => {
     try {
-        const [seg, bur, rep] = await Promise.all([
+        const [seg, bur, rep, cand, pilot, conf] = await Promise.all([
           loadGeoJson("./segments.geojson"),
           loadGeoJson("./bursts.geojson"),
-          loadGeoJson("./repeat_defects.geojson")
+          loadGeoJson("./repeat_defects.geojson"),
+          loadGeoJson("./repeat_defect_clusters_candidate.geojson"),
+          loadGeoJson("./repeat_defect_clusters_pilot.geojson"),
+          loadGeoJson("./repeat_defect_clusters_confirmed.geojson")
         ]);
-        
-        addSegments(seg);
-        addBursts(bur);
-        addRepeatDefects(rep);
-        addProbablePotholes(bur);
+		addSegments(seg);
+		addBursts(bur);
+		addRepeatDefects(rep);
+		addClusteredDefects(cand, candidateDefectsLayer, "Candidate defect (3+ drives)");
+		addClusteredDefects(pilot, pilotDefectsLayer, "Pilot defect (4+ drives)");
+		addClusteredDefects(conf, confirmedDefectsLayer, "Confirmed defect (6+ drives)");
+		addProbablePotholes(bur);
 
       // default-visible overlays (like Folium show=True)
       segmentsLayer.addTo(map);
