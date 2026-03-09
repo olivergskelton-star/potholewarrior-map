@@ -348,7 +348,7 @@ function colorForSQI(sqi) {
           const strength = Math.max(0.25, Math.min(1.0, drives / 15));
     
           return L.circleMarker(latlng, {
-            radius: 5 + (p.severity_score || 0) / 20
+            radius: 5 + (p.severity_score || 0) / 20,
             weight: 1,
             color: p.severity_colour || strokeColor,
             fillColor: p.severity_colour || fillColor,
