@@ -239,7 +239,7 @@ function colorForSQI(sqi) {
     "Confirmed defects (6+ drives)": confirmedDefectsLayer
   };
 
-  L.control.layers(baseLayers, overlayMaps, { collapsed: false }).addTo(map);
+  L.control.layers(baseLayers, overlayMaps, { collapsed: true }).addTo(map);
 
   // ----------------------------
   // Load GeoJSON (relative files)
@@ -551,12 +551,16 @@ function colorForSQI(sqi) {
       <div class="legend-row"><span class="swatch" style="background:${colorForSQI(80)}"></span> 75–89</div>
       <div class="legend-row"><span class="swatch" style="background:${colorForSQI(65)}"></span> 60–74</div>
       <div class="legend-row"><span class="swatch" style="background:${colorForSQI(40)}"></span> &lt; 60 (bad)</div>
+      <div style="font-weight:600;margin-top:10px">Defect severity</div>
+      <div class="legend-row"><span class="swatch" style="background:#FFD54F"></span> Minor roughness</div>
+      <div class="legend-row"><span class="swatch" style="background:#FB8C00"></span> Strong defect</div>
+      <div class="legend-row"><span class="swatch" style="background:#E53935"></span> Severe pothole</div>
 
       <div style="font-weight:600;margin-top:10px">Bursts</div>
       <div class="legend-row"><span class="swatch" style="background:#ffffff"></span> Burst sample</div>
 
       <div style="font-size:12px;opacity:0.75;margin-top:10px">
-        Tip: tap clusters to zoom in.
+        Tip: Tap Burst clusters to zoom in.
       </div>
     `;
     L.DomEvent.disableClickPropagation(div);
@@ -570,10 +574,10 @@ function colorForSQI(sqi) {
     div.innerHTML = `
       <div class="logo-badge">
         <!-- Optional: add a file named logo.png next to index.html and it will show -->
-        <img src="./logo.png" onerror="this.style.display='none'" alt="Logo"/>
+        <img src="./pot-hole-warrior-siteimageslogo.png" onerror="this.style.display='none'" alt="Pothole Warrior"/>
         <div>
           <div class="title">Pot Hole Warrior</div>
-          <div class="sub">Dynamic Web Map</div>
+          <div class="sub">On the Front Line in the War Against Bad Roads</div>
         </div>
       </div>
     `;
