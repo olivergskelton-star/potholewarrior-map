@@ -541,32 +541,44 @@ function colorForSQI(sqi) {
   // ----------------------------
   // Legend + Logo overlays
   // ----------------------------
+  
   const legend = L.control({ position: "bottomleft" });
-  legend.onAdd = function() {
-    const div = L.DomUtil.create("div", "map-overlay");
-    div.innerHTML = `
-      <div style="font-weight:700;margin-bottom:6px">Legend</div>
-      <div style="font-weight:600;margin-top:8px">Segments (SQI)</div>
-      <div class="legend-row"><span class="swatch" style="background:${colorForSQI(95)}"></span> 90–100 (good)</div>
-      <div class="legend-row"><span class="swatch" style="background:${colorForSQI(80)}"></span> 75–89</div>
-      <div class="legend-row"><span class="swatch" style="background:${colorForSQI(65)}"></span> 60–74</div>
-      <div class="legend-row"><span class="swatch" style="background:${colorForSQI(40)}"></span> &lt; 60 (bad)</div>
-      <div style="font-weight:600;margin-top:10px">Defect severity</div>
-      <div class="legend-row"><span class="swatch" style="background:#FFD54F"></span> Minor roughness</div>
-      <div class="legend-row"><span class="swatch" style="background:#FB8C00"></span> Strong defect</div>
-      <div class="legend-row"><span class="swatch" style="background:#E53935"></span> Severe pothole</div>
+  
+  legend.onAdd = function () {
 
-      <div style="font-weight:600;margin-top:10px">Bursts</div>
-      <div class="legend-row"><span class="swatch" style="background:#ffffff"></span> Burst sample</div>
+  const container = L.DomUtil.create("div");
 
-      <div style="font-size:12px;opacity:0.75;margin-top:10px">
-        Tip: Tap Burst clusters to zoom in.
+  container.innerHTML = `
+    <div class="map-overlay" id="legendBox">
+      <div style="font-weight:700;margin-bottom:6px;cursor:pointer" onclick="toggleLegend()">
+        Legend ▲
       </div>
-    `;
-    L.DomEvent.disableClickPropagation(div);
-    return div;
-  };
-  legend.addTo(map);
+
+      <div id="legendContent">
+      
+        <div style="font-weight:700;margin-bottom:6px">Legend</div>
+        <div style="font-weight:600;margin-top:8px">Segments (SQI)</div>
+        <div class="legend-row"><span class="swatch" style="background:${colorForSQI(95)}"></span> 90–100 (good)</div>
+        <div class="legend-row"><span class="swatch" style="background:${colorForSQI(80)}"></span> 75–89</div>
+        <div class="legend-row"><span class="swatch" style="background:${colorForSQI(65)}"></span> 60–74</div>
+        <div class="legend-row"><span class="swatch" style="background:${colorForSQI(40)}"></span> &lt; 60 (bad)</div>
+        <div style="font-weight:600;margin-top:10px">Defect severity</div>
+        <div class="legend-row"><span class="swatch" style="background:#FFD54F"></span> Minor roughness</div>
+        <div class="legend-row"><span class="swatch" style="background:#FB8C00"></span> Strong defect</div>
+        <div class="legend-row"><span class="swatch" style="background:#E53935"></span> Severe pothole</div>
+
+        <div style="font-weight:600;margin-top:10px">Bursts</div>
+        <div class="legend-row"><span class="swatch" style="background:#ffffff"></span> Burst sample</div>
+
+      </div>
+    </div>
+  `;
+
+  L.DomEvent.disableClickPropagation(container);
+
+  return container;
+};
+ 
 
   const logo = L.control({ position: "topright" });
   logo.onAdd = function() {
@@ -575,10 +587,6 @@ function colorForSQI(sqi) {
       <div class="logo-badge">
         <!-- Optional: add a file named logo.png next to index.html and it will show -->
         <img src="./pot-hole-warrior-siteimageslogo.png" onerror="this.style.display='none'" alt="Pothole Warrior"/>
-        <div>
-          <div class="title">Pot Hole Warrior</div>
-          <div class="sub">On the Front Line in the War Against Bad Roads</div>
-        </div>
       </div>
     `;
     L.DomEvent.disableClickPropagation(div);
